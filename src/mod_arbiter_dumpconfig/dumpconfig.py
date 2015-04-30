@@ -1,19 +1,26 @@
 
 from __future__ import print_function, with_statement, unicode_literals
 
+#############################################################################
+
 import datetime
 import sys
 import time
 from itertools import chain
 
+#############################################################################
+
 import pymongo
 
+#############################################################################
 
 from shinken.basemodule import BaseModule
 from shinken.commandcall import CommandCall
 from shinken.objects.config import Config
 from shinken.objects import Service
 from shinken.log import logger
+from shinken.objects.item import Item, Items
+from shinken.property import none_object
 
 #############################################################################
 
@@ -23,12 +30,15 @@ from .sanitize_shinken_object_value import sanitize_value
 
 # various data handlers and settings to configure how the serialization
 # from shinken objects to "json-like" objects will be done.
-from shinken.objects.item import Item
-from shinken.property import none_object
+
+_TypesInfos = Config.types_creations.copy()
+
 
 _accepted_types = (
     # for each shinken object, we'll look at each of its attribute defined
-    # in its class 'properties' and 'running_properties' dicts.
+    # in its class 'properties' and 'running_properties' dicts (+ few others
+    # hardcoded one because we miss them in pre-mentioned dicts unfortun.. )
+
     # If the object attribute value isn't one of '_accepted_types'
     # then that attribute will simply be skipped !
 
@@ -64,7 +74,7 @@ _skip_attributes = (
 )
 
 
-_by_type_skip = dict(
+_by_type_name_skip = dict(
     # for each shinken object type **name**,
     # define the list/tuple of attributes to be also skipped.
 
@@ -151,6 +161,7 @@ class DumpConfig(BaseModule):
 
     def do_insert(self, arbiter):
         logger.info("Dumping config to mongo ..")
+
         try:
             self._do_insert(arbiter)
         except Exception as err:
@@ -165,8 +176,8 @@ class DumpConfig(BaseModule):
         """
         conn = self._connect_db()
         db = conn[self._db]
-        for singular_name, values in Config.types_creations.items():
-            cls, clss, plural_name, _ = values
+        for singular_name, infos in _TypesInfos.items():
+            cls, clss, plural_name, _ = infos
             collection = db[plural_name]
             objects = getattr(arbiter.conf, plural_name)
             for obj in objects:
@@ -177,7 +188,7 @@ class DumpConfig(BaseModule):
                                    '_self_declared_properties',)):
                     if attr in _skip_attributes:
                         continue
-                    if attr in _by_type_skip.get(singular_name, ()):
+                    if attr in _by_type_name_skip.get(singular_name, ()):
                         continue
 
                     # would we use a default value for this attribute
@@ -198,6 +209,7 @@ class DumpConfig(BaseModule):
                         if val is none_object:
                             # special case for this unfortunately..
                             val = None
+
                         val = _by_name_converter.get(attr, lambda v: v)(val)
                         if isinstance(val, _accepted_types):
                             val = sanitize_value(val)
@@ -238,3 +250,29 @@ class DumpConfig(BaseModule):
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s : %s" %
                                        (obj, err))
+
+        collection = db['global_configuration']
+        dglobal = {}
+        resources = {}
+        # special case for the global configuration values :
+        for attr, value in vars(arbiter.conf).iteritems():
+            if not isinstance(value, _accepted_types):
+                continue
+            if attr in ('confs', 'whole_conf_pack'):
+                continue
+            value = sanitize_value(value)
+            if attr.startswith('$') and attr.endswith('$'):
+                resources[attr[1:-1]] = value
+            else:
+                dglobal[attr] = value
+
+        if 'resources' in dglobal:
+            raise RuntimeError(
+                "Daaamn, there was already a 'resource' attribute in the global"
+                "configuration .. But I wanted to used to store the different "
+                " \"resources macros\" ($USERXX$)\n"
+                "Houston, we have a problem..")
+        dglobal['resources'] = resources
+
+        collection.drop()
+        collection.insert(dglobal)
