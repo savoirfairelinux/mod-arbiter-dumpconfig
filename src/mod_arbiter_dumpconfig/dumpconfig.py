@@ -316,8 +316,7 @@ class DumpConfig(BaseModule):
         # special case for the global configuration values :
         collection = db['global_configuration']
         dglobal = {}
-        resources = {}
-        # special case for the global configuration values :
+        macros = {}  # special case for shinken macros ($XXX$)
         for attr, value in vars(arbiter.conf).iteritems():
             if not isinstance(value, _accepted_types):
                 continue
@@ -325,17 +324,17 @@ class DumpConfig(BaseModule):
                 continue
             value = sanitize_value(value)
             if attr.startswith('$') and attr.endswith('$'):
-                resources[attr[1:-1]] = value
+                macros[attr[1:-1]] = value
             else:
                 dglobal[attr] = value
 
-        if 'resources' in dglobal:
+        if 'macros' in dglobal:
             raise RuntimeError(
-                "Daaamn, there was already a 'resource' attribute in the global"
+                "Daaamn, there was already a 'macros' attribute in the global"
                 "configuration .. But I wanted to used to store the different "
                 " \"resources macros\" ($USERXX$)\n"
                 "Houston, we have a problem..")
-        dglobal['resources'] = resources
+        dglobal['macros'] = macros
 
         collection.drop()
         collection.insert(dglobal)
