@@ -366,7 +366,7 @@ class DumpConfig(BaseModule):
 
         Item.__setattr__ = hooked_setattr
 
-    def hook_dump(self, daemon):
+    def hook_scheduler_tick(self, daemon):
 
         n_updated = 0
         tot_attr_updated = 0
