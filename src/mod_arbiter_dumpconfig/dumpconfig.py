@@ -375,6 +375,8 @@ class DumpConfig(BaseModule):
         self._objects_updated = self._make_objects_updates()
         time.sleep(0.05)
 
+        t0 = time.time()
+
         with self._connect_db() as conn:
             db = conn[self._db]
             for cls, objects in objs_updated.items():
@@ -408,5 +410,5 @@ class DumpConfig(BaseModule):
                 self._objects_updated[cls].clear()
 
         if n_updated:
-            logger.info("updated %s objects with %s attributes in mongo ..",
-                        n_updated, tot_attr_updated)
+            logger.info("updated %s objects with %s attributes in mongo in %s secs ..",
+                        n_updated, tot_attr_updated, time.time() - t0)
