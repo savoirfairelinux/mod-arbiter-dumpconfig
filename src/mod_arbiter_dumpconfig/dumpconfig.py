@@ -373,6 +373,7 @@ class DumpConfig(BaseModule):
 
         objs_updated = self._objects_updated
         self._objects_updated = self._make_objects_updates()
+        time.sleep(0.05)
 
         with self._connect_db() as conn:
             db = conn[self._db]
