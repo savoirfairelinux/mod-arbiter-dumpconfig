@@ -4,7 +4,7 @@ from .dumpconfig import DumpConfig
 
 
 properties = {
-    'daemons': ['arbiter'],
+    'daemons': ['arbiter', 'scheduler'],
     'phases': ['running'],
     'type': 'mongo_dumpconfig',
     'external': False,

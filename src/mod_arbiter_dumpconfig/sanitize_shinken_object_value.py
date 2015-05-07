@@ -2,6 +2,7 @@
 
 from shinken.commandcall import CommandCall
 from shinken.objects.item import Item
+from shinken.property import none_object
 
 
 _shinken_objects_types = (
@@ -21,7 +22,7 @@ _sanitizer_handlers = {
     # the hosts & services have attached in their 'command' attribute
     # a CommandCall instance
     # for that kind of object we only want the actually linked command_name:
-    CommandCall:    lambda v: v.command.command_name,
+    CommandCall: lambda v: v.command.command_name,
 
     # sets and frozensets don't have an equivalent in mongo,
     # we'll translate them into tuples.
@@ -35,6 +36,8 @@ def sanitize_value(value):
     :param value:
     :return:
     """
+    if value is none_object:  # special case
+        return None
 
     value = _sanitizer_handlers.get(type(value), lambda v: v)(value)
 
