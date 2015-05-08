@@ -140,17 +140,18 @@ def get_dest_attr(objtype, attr):
 
 #############################################################################
 
-_default_attribute_value = {
+_def_attr_value = {
     # if an attribute is missing on an object
-    # then it'll get a default value from here
-    'use':      [],
+    # then it'll get a default *handler* value from here,
+    'use': lambda: [],  # that is the lambda will be executed
+                        # and it's return value will be used as the default.
 }
 
-_by_type_default_attribute_value = {
+_by_type_def_attr_value = {
     # same, but with per type:
     # example:
     # Service: {
-    #   'attr_foo': default_value_for_attr_foo_on_Service_object,
+    #   'attr_foo': lambda: default_value_for_attr_foo_on_Service_object,
     #   ..
     # }
 }
@@ -168,11 +169,12 @@ def get_default_attr_value_args(attr, cls):
     :param attr: The name of the attribute.
     :param cls: The class to which the attribute belongs to.
     """
-    val = _default_attribute_value.get(attr, none_object)
-    if val != none_object:
-        return val,
-    val = _by_type_default_attribute_value.get(cls, {}).get(attr, none_object)
-    return () if val == none_object else (val,)
+    handler = _def_attr_value.get(attr)
+    if not handler:
+        handler = _by_type_def_attr_value.get(cls, {}).get(attr)
+    if handler:
+        return handler(),  # NB: don't miss the ',' !
+    return ()
 
 #############################################################################
 
