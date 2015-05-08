@@ -217,10 +217,10 @@ def get_value_by_type_name_val(cls, attr, value):
 #############################################################################
 
 
-class DumpConfig(BaseModule):
+class LiveConfig(BaseModule):
 
     def __init__(self, mod_conf):
-        super(DumpConfig, self).__init__(mod_conf)
+        super(LiveConfig, self).__init__(mod_conf)
         self._host = getattr(mod_conf, 'hostname', '127.0.0.1')
         self._port = int(getattr(mod_conf, 'port', 27017))
         self._db_name = getattr(mod_conf, 'db', 'shinken_live')
@@ -434,7 +434,7 @@ class DumpConfig(BaseModule):
 
                 try:
                     # print("%s -> %s" % (key, dest))
-                    collection.update(key, dobj)
+                    res = collection.update(key, dobj)
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s : %s" %
                                        (obj.get_name(), err))
