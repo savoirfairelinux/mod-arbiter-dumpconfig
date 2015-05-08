@@ -397,8 +397,8 @@ class DumpConfig(BaseModule):
         t0 = time.time()
 
         for cls, objects in objs_updated.items():
-            lower = cls.__name__.lower()
-            collection = self._my_db[lower + 's']
+            infos = _types_infos[cls]
+            collection = self._my_db[infos.plural]
             for obj, lst in objects.items():
                 dest = {}
                 dobj = {'$set': dest}
@@ -407,7 +407,7 @@ class DumpConfig(BaseModule):
                     key = {k: getattr(obj, k)
                            for k in ('host_name', 'service_description')}
                 else:
-                    key = {'%s_name' % lower: obj.get_name()}
+                    key = {'%s_name' % infos.singular: obj.get_name()}
 
                 for d in lst:
                     destattr = get_dest_attr(cls, d['attr'])
