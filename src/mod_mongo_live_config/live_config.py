@@ -117,10 +117,11 @@ def _build_types_infos():
         accepted_properties.add('use')
         res[cls] = TypeInfos(cls.__name__.lower(), clss, plural,
                              accepted_properties)
+
     # Config is a bit special (it has not "plural" class):
     ap = set(Config.properties) | set(Config.running_properties)
     ap -= set(_skip_attributes)
-    ap -= set(_by_type_skip_attributes.get(cls, ()))
+    ap -= set(_by_type_skip_attributes.get(Config, ()))
     res[Config] = TypeInfos('config', None, GLOBAL_CONFIG_COLLECTION_NAME, ap)
     return res
 
