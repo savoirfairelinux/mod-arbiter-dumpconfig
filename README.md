@@ -16,8 +16,9 @@ This module is still under devel/beta mode ..
 
 Configuration:
 ==============
-
+```
 define module {
+ 
     module_name your_module_name
     module_type mongo_live_config
     
@@ -32,3 +33,4 @@ define module {
     # db : the name of the mongo db to use
     #      default: shinken_live
 }
+```
