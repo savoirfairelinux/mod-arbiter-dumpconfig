@@ -104,16 +104,19 @@ class TypeInfos(object):
 
 # just to save us to recompute this every time we need to work on a
 # particular shinken object type :
-_types_infos = {}
+def _build_types_infos():
+    res = {}
+    for _, (cls, clss, plural, _) in Config.types_creations.items():
+        accepted_properties = set(cls.properties) | set(cls.running_properties)
+        accepted_properties -= set(_skip_attributes)
+        accepted_properties -= set(_by_type_skip_attributes.get(cls, ()))
+        accepted_properties.add('use')
+        res[cls] = TypeInfos(cls.__name__.lower(), clss,
+                                      plural, accepted_properties)
+    return res
 
-for _, (cls, clss, plural, _) in Config.types_creations.items():
-    accepted_properties = set(cls.properties) | set(cls.running_properties)
-    accepted_properties -= set(_skip_attributes)
-    accepted_properties -= set(_by_type_skip_attributes.get(cls, ()))
-    accepted_properties.add('use')
-    _types_infos[cls] = TypeInfos(cls.__name__.lower(), clss,
-                                  plural, accepted_properties)
-del cls, clss, plural
+_types_infos = _build_types_infos()
+del _build_types_infos
 
 #############################################################################
 
