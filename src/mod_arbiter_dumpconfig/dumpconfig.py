@@ -238,18 +238,18 @@ class DumpConfig(BaseModule):
 
     def do_insert(self, arbiter):
         try:
-            self._do_insert(arbiter)
+            with self._connect_db() as conn:
+                self._do_insert(conn, arbiter)
         except Exception as err:
             logger.exception("I got a fatal error: %s", err)
             sys.exit("I'm in devel/beta mode and I prefer to exit for now,"
                      "please open a ticket with this exception details, thx :)")
 
-    def _do_insert(self, arbiter):
+    def _do_insert(self, conn, arbiter):
         """Do that actual insert(or update) job.
         :param arbiter: The arbiter object.
         :return:
         """
-        conn = self._connect_db()
         db = conn[self._db]
         for cls, infos in _types_infos.items():
             collection = db[infos.plural]
