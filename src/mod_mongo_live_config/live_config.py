@@ -379,9 +379,8 @@ class LiveConfig(BaseModule):
                 "Houston, we have a problem..")
         dglobal['macros'] = macros
 
-        collection.drop()
-        collection.insert(dglobal)
-
+        key = {'config_name': arbiter.conf.get_name()}
+        collection.update(key, dglobal, True)
 
     ########################
 
