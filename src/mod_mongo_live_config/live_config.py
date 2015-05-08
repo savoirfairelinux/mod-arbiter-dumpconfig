@@ -280,9 +280,10 @@ class LiveConfig(BaseModule):
         """
         db = conn[self._db_name]
         for cls, infos in _types_infos.items():
-            if cls is Config:  # specially handled below..
-                continue
+            if cls is Config:
+                continue  # special cased below ..
             collection = db[infos.plural]
+            bulkop = collection.initialize_unordered_bulk_op()
             objects = getattr(arbiter.conf, infos.plural)
             for obj in objects:
                 dobj = {}  # the mongo document which will be stored..
@@ -334,12 +335,20 @@ class LiveConfig(BaseModule):
                             (cls, obj.get_name(), attr, prev, key_value))
 
                 try:
-                    collection.update(key, dobj, True)
+                    bulkop.find(key).upsert().replace_one(dobj)
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s-%s : %s" %
                                        (cls, obj.get_name(), err))
 
             # end for obj in objects..
+
+            if objects:
+                # mongo requires at least one document for a bulkop.execute()
+                try:
+                    bulkop.execute()
+                except Exception as err:
+                    raise RuntimeError("Error on bulk execute for collection "
+                                       "%s : %s" % (infos.plural, err))
         # end for cls, infos in _types_infos.items()
 
         # special case for the global configuration values :
