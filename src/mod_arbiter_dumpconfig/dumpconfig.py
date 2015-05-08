@@ -272,7 +272,6 @@ class DumpConfig(BaseModule):
             for obj in objects:
                 dobj = {}  # the mongo document which will be stored..
                 for attr in infos.accepted_properties:
-
                     # would we use a default value for this attribute
                     # if the object wouldn't have it ?
                     def_val_args = get_default_attr_value_args(attr, cls)
@@ -360,8 +359,13 @@ class DumpConfig(BaseModule):
     def hook_pre_scheduler_mod_start(self, scheduler):
         if self._hooked:
             return
+
+        self._my_conn = self._connect_db()
+        self._my_db = self._my_conn[self._db]
         self._hooked = True
 
+        # had to declare hooked_setattr "encapsulated" here
+        # so to have access to 'self' (where we store the _objects_updated).
         def hooked_setattr(obj, attr, value):
             # filter on obj + attr ..
             # print("->", type(obj), attr, value)
@@ -392,37 +396,35 @@ class DumpConfig(BaseModule):
 
         t0 = time.time()
 
-        with self._connect_db() as conn:
-            db = conn[self._db]
-            for cls, objects in objs_updated.items():
-                lower = cls.__name__.lower()
-                collection = db[lower + 's']
-                for obj, lst in objects.items():
-                    dest = {}
-                    dobj = {'$set': dest}
+        for cls, objects in objs_updated.items():
+            lower = cls.__name__.lower()
+            collection = self._my_db[lower + 's']
+            for obj, lst in objects.items():
+                dest = {}
+                dobj = {'$set': dest}
 
-                    if isinstance(obj, Service):
-                        key = {k: getattr(obj, k)
-                               for k in ('host_name', 'service_description')}
-                    else:
-                        key = {'%s_name' % lower: obj.get_name()}
+                if isinstance(obj, Service):
+                    key = {k: getattr(obj, k)
+                           for k in ('host_name', 'service_description')}
+                else:
+                    key = {'%s_name' % lower: obj.get_name()}
 
-                    for d in lst:
-                        destattr = get_dest_attr(cls, d['attr'])
-                        dest[destattr] = sanitize_value(d['value'])
+                for d in lst:
+                    destattr = get_dest_attr(cls, d['attr'])
+                    dest[destattr] = sanitize_value(d['value'])
 
-                    tot_attr_updated += len(dest)
+                tot_attr_updated += len(dest)
 
-                    try:
-                        # print("%s -> %s" % (key, dest))
-                        res = collection.update(key, dobj)
-                    except Exception as err:
-                        raise RuntimeError("Error on insert/update of %s : %s" %
-                                           (obj.get_name(), err))
-                    n_updated += 1
+                try:
+                    # print("%s -> %s" % (key, dest))
+                    collection.update(key, dobj)
+                except Exception as err:
+                    raise RuntimeError("Error on insert/update of %s : %s" %
+                                       (obj.get_name(), err))
+                n_updated += 1
 
-            for cls in self._objects_updated:
-                self._objects_updated[cls].clear()
+        for cls in self._objects_updated:
+            self._objects_updated[cls].clear()
 
         if n_updated:
             logger.info("updated %s objects with %s attributes in mongo in %s secs ..",
