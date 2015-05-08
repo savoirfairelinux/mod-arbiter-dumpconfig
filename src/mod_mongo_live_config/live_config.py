@@ -347,7 +347,10 @@ class LiveConfig(BaseModule):
         macros = {}  # special case for shinken macros ($XXX$)
         for attr in _types_infos[Config].accepted_properties:
             def_val_args = get_default_attr_value_args(attr, Config)
-            value = getattr(arbiter.conf, *def_val_args)
+            try:
+                value = getattr(arbiter.conf, attr, *def_val_args)
+            except AttributeError:
+                continue
             if not isinstance(value, _accepted_types):
                 continue
             value = sanitize_value(value)
