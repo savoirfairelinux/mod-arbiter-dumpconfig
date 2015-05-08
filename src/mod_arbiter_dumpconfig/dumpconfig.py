@@ -193,6 +193,15 @@ _by_type_name_converter = {
     # }
 }
 
+
+def get_value_by_type_name_val(cls, attr, value):
+    handler = _by_name_converter.get(attr)
+    if not handler:
+        handler = _by_type_name_converter.get(cls, {}).get(attr)
+    if handler:
+        return handler(value)
+    return value
+
 #############################################################################
 
 
@@ -273,7 +282,7 @@ class DumpConfig(BaseModule):
                             # special case for this unfortunately..
                             val = None
 
-                        val = _by_name_converter.get(attr, lambda v: v)(val)
+                        val = get_value_by_type_name_val(cls, attr, val)
                         if isinstance(val, _accepted_types):
                             dobj[get_dest_attr(cls, attr)] = sanitize_value(val)
                         else:
