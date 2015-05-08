@@ -455,9 +455,9 @@ class LiveConfig(BaseModule):
                                        (obj.get_name(), err))
                 n_updated += 1
 
-        for cls in self._objects_updated:
-            self._objects_updated[cls].clear()
-
         if n_updated:
             logger.info("updated %s objects with %s attributes in mongo in %s secs ..",
                         n_updated, tot_attr_updated, time.time() - t0)
+
+        for cls in self._objects_updated:
+            self._objects_updated[cls].clear()
