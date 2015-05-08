@@ -33,6 +33,8 @@ from .sanitize_shinken_object_value import sanitize_value
 
 #############################################################################
 
+GLOBAL_CONFIG_COLLECTION_NAME = "global_configuration"
+
 _not_exist = object()  # a sentinel to be used..
 
 _accepted_types = (
@@ -87,7 +89,8 @@ _by_type_skip_attributes = {
     # but it's quite a complex object type and I'm not sure it's actually
     # needed within the mongo :
     Timeperiod: ('dateranges',),
-    Realm: ('serialized_confs',)
+    Realm: ('serialized_confs',),
+    Config: ('confs', 'whole_conf_pack',),
 }
 
 
@@ -102,6 +105,7 @@ class TypeInfos(object):
         self.plural = plural
         self.accepted_properties = accepted_properties
 
+
 # just to save us to recompute this every time we need to work on a
 # particular shinken object type :
 def _build_types_infos():
@@ -111,8 +115,13 @@ def _build_types_infos():
         accepted_properties -= set(_skip_attributes)
         accepted_properties -= set(_by_type_skip_attributes.get(cls, ()))
         accepted_properties.add('use')
-        res[cls] = TypeInfos(cls.__name__.lower(), clss,
-                                      plural, accepted_properties)
+        res[cls] = TypeInfos(cls.__name__.lower(), clss, plural,
+                             accepted_properties)
+    # Config is a bit special (it has not "plural" class):
+    ap = set(Config.properties) | set(Config.running_properties)
+    ap -= set(_skip_attributes)
+    ap -= set(_by_type_skip_attributes.get(cls, ()))
+    res[Config] = TypeInfos('config', None, GLOBAL_CONFIG_COLLECTION_NAME, ap)
     return res
 
 _types_infos = _build_types_infos()
@@ -270,6 +279,8 @@ class DumpConfig(BaseModule):
         """
         db = conn[self._db]
         for cls, infos in _types_infos.items():
+            if cls is Config:  # specially handled below..
+                continue
             collection = db[infos.plural]
             objects = getattr(arbiter.conf, infos.plural)
             for obj in objects:
@@ -331,15 +342,17 @@ class DumpConfig(BaseModule):
         # end for cls, infos in _types_infos.items()
 
         # special case for the global configuration values :
-        collection = db['global_configuration']
+        collection = db[GLOBAL_CONFIG_COLLECTION_NAME]
         dglobal = {}
         macros = {}  # special case for shinken macros ($XXX$)
-        for attr, value in vars(arbiter.conf).iteritems():
+        for attr in _types_infos[Config].accepted_properties:
+            def_val_args = get_default_attr_value_args(attr, Config)
+            value = getattr(arbiter.conf, *def_val_args)
             if not isinstance(value, _accepted_types):
                 continue
-            if attr in ('confs', 'whole_conf_pack'):
-                continue
             value = sanitize_value(value)
+            # special case, mongo don't accept keys starting with '$',
+            # and we'll put that in a subkey of the main document.
             if attr.startswith('$') and attr.endswith('$'):
                 macros[attr[1:-1]] = value
             else:
@@ -373,8 +386,9 @@ class DumpConfig(BaseModule):
             # filter on obj + attr ..
             # print("->", type(obj), attr, value)
             cls = obj.__class__
-            if (cls is not Config
-                    and attr in _types_infos[cls].accepted_properties):
+            type_infos = _types_infos[cls]
+
+            if attr in type_infos.accepted_properties:
                 if value != getattr(obj, attr, _not_exist):
                     # only retain, for update, the new value if it's different
                     # than the previous one actually..
