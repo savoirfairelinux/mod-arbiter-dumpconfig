@@ -223,7 +223,7 @@ class DumpConfig(BaseModule):
         super(DumpConfig, self).__init__(mod_conf)
         self._host = getattr(mod_conf, 'hostname', '127.0.0.1')
         self._port = int(getattr(mod_conf, 'port', 27017))
-        self._db = getattr(mod_conf, 'db', 'shinken')
+        self._db_name = getattr(mod_conf, 'db', 'shinken_live')
         self._hooked = False
         self._lock = threading.Lock()
         self._objects_updated = self._make_objects_updates()
@@ -277,7 +277,7 @@ class DumpConfig(BaseModule):
         :param arbiter: The arbiter object.
         :return:
         """
-        db = conn[self._db]
+        db = conn[self._db_name]
         for cls, infos in _types_infos.items():
             if cls is Config:  # specially handled below..
                 continue
@@ -377,7 +377,7 @@ class DumpConfig(BaseModule):
             return
 
         self._my_conn = self._connect_db()
-        self._my_db = self._my_conn[self._db]
+        self._my_db = self._my_conn[self._db_name]
         self._hooked = True
 
         # had to declare hooked_setattr "encapsulated" here
