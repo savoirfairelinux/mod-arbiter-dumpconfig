@@ -218,10 +218,14 @@ class DumpConfig(BaseModule):
 
     @staticmethod
     def _make_objects_updates():
-        res = {}
-        for cls in _types_infos:
-            res[cls] = defaultdict(list)
-        return res
+        # return a dict suitable for storing the objects updated
+        # keys are Shinken objects type (Item, Host, ..)
+        # values are defaultdict(list) :
+        #   with key: the object updated
+        #        value:  a list of updated attributes
+        #            each value of the list being another dict
+        #            with 'attr' and 'value' keys..
+        return {cls: defaultdict(list) for cls in _types_infos}
 
     def init(self):
         for objects in self._objects_updated.values():
