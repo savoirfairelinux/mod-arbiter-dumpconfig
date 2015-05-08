@@ -431,14 +431,17 @@ class LiveConfig(BaseModule):
                     key = {'%s_name' % infos.singular: obj.get_name()}
 
                 for d in lst:
-                    destattr = get_dest_attr(cls, d['attr'])
-                    dest[destattr] = sanitize_value(d['value'])
+                    attr = d['attr']
+                    value = d['value']
+                    value = get_value_by_type_name_val(cls, attr, value)
+                    destattr = get_dest_attr(cls, attr)
+                    dest[destattr] = sanitize_value(value)
 
                 tot_attr_updated += len(dest)
 
                 try:
                     # print("%s -> %s" % (key, dest))
-                    res = collection.update(key, dobj)
+                    collection.update(key, dobj)
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s : %s" %
                                        (obj.get_name(), err))
