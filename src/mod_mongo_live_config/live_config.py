@@ -280,9 +280,10 @@ class LiveConfig(BaseModule):
         """
         db = conn[self._db_name]
         for cls, infos in _types_infos.items():
-            if cls is Config:  # specially handled below..
-                continue
+            if cls is Config:
+                continue  # special cased below ..
             collection = db[infos.plural]
+            bulkop = collection.initialize_unordered_bulk_op()
             objects = getattr(arbiter.conf, infos.plural)
             for obj in objects:
                 dobj = {}  # the mongo document which will be stored..
@@ -334,12 +335,20 @@ class LiveConfig(BaseModule):
                             (cls, obj.get_name(), attr, prev, key_value))
 
                 try:
-                    collection.update(key, dobj, True)
+                    bulkop.find(key).upsert().replace_one(dobj)
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s-%s : %s" %
                                        (cls, obj.get_name(), err))
 
             # end for obj in objects..
+
+            if objects:
+                # mongo requires at least one document for a bulkop.execute()
+                try:
+                    bulkop.execute()
+                except Exception as err:
+                    raise RuntimeError("Error on bulk execute for collection "
+                                       "%s : %s" % (infos.plural, err))
         # end for cls, infos in _types_infos.items()
 
         # special case for the global configuration values :
@@ -370,9 +379,8 @@ class LiveConfig(BaseModule):
                 "Houston, we have a problem..")
         dglobal['macros'] = macros
 
-        collection.drop()
-        collection.insert(dglobal)
-
+        key = {'config_name': arbiter.conf.get_name()}
+        collection.update(key, dglobal, True)
 
     ########################
 
@@ -420,6 +428,7 @@ class LiveConfig(BaseModule):
         for cls, objects in objs_updated.items():
             infos = _types_infos[cls]
             collection = self._my_db[infos.plural]
+            bulkop = collection.initialize_unordered_bulk_op()
             for obj, lst in objects.items():
                 dest = {}
                 dobj = {'$set': dest}
@@ -441,15 +450,25 @@ class LiveConfig(BaseModule):
 
                 try:
                     # print("%s -> %s" % (key, dest))
-                    collection.update(key, dobj)
+                    bulkop.find(key).update_one(dobj)
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s : %s" %
                                        (obj.get_name(), err))
                 n_updated += 1
+            # end for obj, lst in objects.items()
 
-        for cls in self._objects_updated:
-            self._objects_updated[cls].clear()
+            if objects:
+                # mongo requires at least one document for a bulkop.execute()
+                try:
+                    bulkop.execute()
+                except Exception as err:
+                    raise RuntimeError("Error on bulk execute for collection "
+                                       "%s : %s" % (infos.plural, err))
+
 
         if n_updated:
             logger.info("updated %s objects with %s attributes in mongo in %s secs ..",
                         n_updated, tot_attr_updated, time.time() - t0)
+
+        for cls in self._objects_updated:
+            self._objects_updated[cls].clear()
