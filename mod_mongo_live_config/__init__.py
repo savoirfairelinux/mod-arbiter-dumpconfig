@@ -1,7 +1,7 @@
 
 
 from .live_config import LiveConfig
-
+from .version import VERSION
 
 properties = {
     'daemons': ['arbiter', 'scheduler'],
