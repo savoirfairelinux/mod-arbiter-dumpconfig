@@ -1,6 +1,4 @@
 
-
-from .live_config import LiveConfig
 from .version import VERSION
 
 properties = {
@@ -12,5 +10,6 @@ properties = {
 
 
 def get_instance(plugin):
+    from .live_config import LiveConfig
     instance = LiveConfig(plugin)
     return instance
