@@ -425,11 +425,11 @@ class LiveConfig(BaseModule):
 
         t0 = time.time()
 
-        for cls, objects in objs_updated.items():
+        for cls, objects in objs_updated.iteritems():
             infos = _types_infos[cls]
             collection = self._my_db[infos.plural]
             bulkop = collection.initialize_unordered_bulk_op()
-            for obj, lst in objects.items():
+            for obj, dct in objects.iteritems():
                 dest = {}
                 dobj = {'$set': dest}
 
