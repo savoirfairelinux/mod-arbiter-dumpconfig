@@ -233,12 +233,12 @@ class LiveConfig(BaseModule):
     def _make_objects_updates():
         # return a dict suitable for storing the objects updated
         # keys are Shinken objects type (Item, Host, ..)
-        # values are defaultdict(list) :
+        # values are defaultdict(dict) :
         #   with key: the object updated
-        #        value:  a list of updated attributes
-        #            each value of the list being another dict
-        #            with 'attr' and 'value' keys..
-        return {cls: defaultdict(list) for cls in _types_infos}
+        #      value: another dict of updated attributes
+        #         with key: the attribute name
+        #            value: the new attribute value
+        return {cls: defaultdict(dict) for cls in _types_infos}
 
     def init(self):
         for objects in self._objects_updated.values():
@@ -406,10 +406,7 @@ class LiveConfig(BaseModule):
                     # than the previous one actually..
                     # with self._lock:
                     # TODO / TOCHECK: should we use the lock ??
-                    self._objects_updated[cls][obj].append({
-                        'attr': attr,
-                        'value': value,
-                    })
+                    self._objects_updated[cls][obj][attr] = value
             super(Item, obj).__setattr__(attr, value)
 
         Item.__setattr__ = hooked_setattr
@@ -419,8 +416,9 @@ class LiveConfig(BaseModule):
         n_updated = 0
         tot_attr_updated = 0
 
-        objs_updated = self._objects_updated
-        self._objects_updated = self._make_objects_updates()
+        objs_updated, self._objects_updated = (
+            self._objects_updated, self._make_objects_updates())
+
         time.sleep(0.05)
 
         t0 = time.time()
@@ -439,9 +437,7 @@ class LiveConfig(BaseModule):
                 else:
                     key = {'%s_name' % infos.singular: obj.get_name()}
 
-                for d in lst:
-                    attr = d['attr']
-                    value = d['value']
+                for attr, value in dct.iteritems():
                     value = get_value_by_type_name_val(cls, attr, value)
                     destattr = get_dest_attr(cls, attr)
                     dest[destattr] = sanitize_value(value)
@@ -464,7 +460,6 @@ class LiveConfig(BaseModule):
                 except Exception as err:
                     raise RuntimeError("Error on bulk execute for collection "
                                        "%s : %s" % (infos.plural, err))
-
 
         if n_updated:
             logger.info("updated %s objects with %s attributes in mongo in %s secs ..",
