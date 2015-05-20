@@ -22,6 +22,7 @@ from shinken.daemons.arbiterdaemon import Arbiter
 from shinken.objects.config import Config
 from shinken.objects import Service
 from shinken.log import logger
+from shinken.objects.host import Host
 from shinken.objects.item import Item, Items
 from shinken.objects.realm import Realm
 from shinken.objects.timeperiod import Timeperiod
@@ -91,6 +92,8 @@ _by_type_skip_attributes = {
     Timeperiod: ('dateranges',),
     Realm: ('serialized_confs',),
     Config: ('confs', 'whole_conf_pack',),
+    Host: ('checks_in_progress',),
+    Service: ('checks_in_progress',),
 }
 
 
