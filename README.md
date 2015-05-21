@@ -1,4 +1,4 @@
-mod-mongo-live-config [![Build Status](https://travis-ci.org/savoirfairelinux/mod-arbiter-dumpconfig.svg?branch=master)](https://travis-ci.org/savoirfairelinux/mod-arbiter-dumpconfig) [![Coverage Status](https://img.shields.io/coveralls/savoirfairelinux/mod-arbiter-dumpconfig.svg)](https://coveralls.io/r/savoirfairelinux/mod-arbiter-dumpconfig?branch=master)
+mod-mongo-live-config [![Build Status](https://travis-ci.org/savoirfairelinux/mod-mongo-live-config.svg?branch=master)](https://travis-ci.org/savoirfairelinux/mod-mongo-live-config) [![Coverage Status](https://img.shields.io/coveralls/savoirfairelinux/mod-mongo-live-config.svg)](https://coveralls.io/r/savoirfairelinux/mod-mongo-live-config?branch=master)
 =====================
 
 Shinken module for keeping, nearly in realtime, the Shinken objects properties/attributes values in a mongodb,
