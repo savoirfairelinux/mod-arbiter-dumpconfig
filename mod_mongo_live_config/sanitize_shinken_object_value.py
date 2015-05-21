@@ -14,6 +14,9 @@ _shinken_objects_types = (
 )
 
 
+def CommandCallHandler(v):
+    return v.call
+
 _sanitizer_handlers = {
     # define type -> transformation
     # if a value has a type here then it'll be transformed according
@@ -22,7 +25,7 @@ _sanitizer_handlers = {
     # the hosts & services have attached in their 'command' attribute
     # a CommandCall instance
     # for that kind of object we only want the actually linked command_name:
-    CommandCall: lambda v: v.command.command_name,
+    CommandCall: CommandCallHandler,
 
     # sets and frozensets don't have an equivalent in mongo,
     # we'll translate them into tuples.
