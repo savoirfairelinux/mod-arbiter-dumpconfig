@@ -5,7 +5,7 @@ Shinken module for keeping, nearly in realtime, the Shinken objects properties/a
 as well as the global configuration properties/attributes values.
 
 The module requires the following:
-- pymongo >= 2.6.3
+- pymongo >= 3.0
 - Shinken >= 2.4
 
 NB:
