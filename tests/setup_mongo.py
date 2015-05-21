@@ -32,7 +32,8 @@ class MongoServerInstance(object):
         mongo_db_uri = "mongodb://127.0.0.1:%s" % port
         self.mongo_db_uri = mongo_db_uri
         mongo_args = ['/usr/bin/mongod', '--dbpath', mongo_db, '--port',
-                      str(port), '--logpath', mongo_log, '--smallfiles']
+                      str(port), '--logpath', mongo_log,
+                      '--smallfiles', '--nojournal', '--noprealloc']
         mp = subprocess.Popen(mongo_args, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, shell=False)
         self.mongo_proc = mp
@@ -62,14 +63,15 @@ class MongoServerInstance(object):
         mp = self.mongo_proc
         mp.terminate()
         print('Waiting mongod server to exit ..')
-        for _ in range(10):
-            time.sleep(2)
+        timeout = 15 + time.time()
+        while time.time() < timeout:
             if mp.poll() is not None:
                 break
         else:
-            print("didn't exited after 10 secs ! killing it..")
+            print("didn't exited after %s secs ! Hard (-9) killing it.." %
+                  timeout)
             mp.kill()
-        mp.wait()
+            mp.wait()
         shutil.rmtree(self.mongo_path)
 
     def _read_mongolog_and_raise(self, log, proc, reason):
