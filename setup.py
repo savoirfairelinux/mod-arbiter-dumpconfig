@@ -66,13 +66,13 @@ setup(
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=[
-        "pymongo==3.0.1",
+        "pymongo==3.0",
     ],
     extras_require={
         'test': [
             unittest_pkg,
-            'nose',
-            'coverage',
+            'nose==1.3',
+            'coverage==3.7',
         ],
     },
 )
