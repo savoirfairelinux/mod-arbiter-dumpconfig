@@ -3,7 +3,7 @@ from __future__ import print_function, with_statement, unicode_literals
 
 #############################################################################
 
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import datetime
 import sys
@@ -229,11 +229,59 @@ class LiveConfig(BaseModule):
         self._port = int(getattr(mod_conf, 'port', 27017))
         self._db_name = getattr(mod_conf, 'db', 'shinken_live')
         self._hooked = False
-        self._lock = threading.Lock()
-        self._objects_updated = self._make_objects_updates()
+        self._objects_updated = deque([self.make_objects_updates()])
+        self._stop_requested = False
+        self._thread = self.make_thread()
+
+    def make_thread(self):
+        th = threading.Thread(target=self._thread_run)
+        th.daemon = True
+        return th
+
+    def quit(self):
+        self._stop_requested = True
+        if self._thread.isAlive():
+            logger.debug("Waiting mongo live thread ..")
+            self._thread.join()
+            logger.info("mongo live thread successfully joined.")
+
+    def _thread_run(self):
+        con = None
+        while not self._stop_requested:
+            if con is None:
+                try:
+                    con = self._connect_to_mongo()
+                    db = con[self._db_name]
+                except Exception as err:
+                    logger.error("Could not connect to mongo: %s", err)
+                    time.sleep(1)
+                    continue
+
+            objects = self.test_and_get_objects_updates()
+            if not objects:
+                time.sleep(1)
+                continue
+            # as we don't use any lock around _objects_updated,
+            # this little sleep should ensure that no more threads
+            # will be able to use the previous self._objects_updated
+            # stored locally here in 'objects'.
+            time.sleep(0.1)
+            try:
+                self.do_updates(db, objects)
+            except Exception as err:
+                logger.exception("Fatal error updating objects in mongo: %s", err)
+                con = None
+
+    def test_and_get_objects_updates(self):
+        objects = self._objects_updated[0]
+        if objects:
+            self._objects_updated.append(self.make_objects_updates())
+            self._objects_updated.popleft()
+            return objects
+        return None
 
     @staticmethod
-    def _make_objects_updates():
+    def make_objects_updates():
         # return a dict suitable for storing the objects updated
         # keys are Shinken objects type (Item, Host, ..)
         # values are defaultdict(dict) :
@@ -241,14 +289,13 @@ class LiveConfig(BaseModule):
         #      value: another dict of updated attributes
         #         with key: the attribute name
         #            value: the new attribute value
-        return {cls: defaultdict(dict) for cls in _types_infos}
+        return defaultdict(lambda: defaultdict(dict))
 
-    def init(self):
-        for objects in self._objects_updated.values():
-            objects.clear()
-
-    def _connect_db(self):
-        return pymongo.MongoClient(self._host, self._port)
+    def _connect_to_mongo(self):
+        return pymongo.MongoClient(self._host, self._port,
+                                   connectTimeoutMS=5000,
+                                   serverSelectionTimeoutMS=5000,
+                                   socketTimeoutMS=7500)
 
     def hook_late_configuration(self, arbiter):
         pass
@@ -264,12 +311,11 @@ class LiveConfig(BaseModule):
         logger.info("Dumping config to mongo ..")
         t0 = time.time()
         self.do_insert(daemon)
-        t1 = time.time()
-        logger.info("Mongo insert took %s", (t1 - t0))
+        logger.info("Mongo insert took %s", (time.time() - t0))
 
     def do_insert(self, arbiter):
         try:
-            with self._connect_db() as conn:
+            with self._connect_to_mongo() as conn:
                 self._do_insert(conn, arbiter)
         except Exception as err:
             logger.exception("I got a fatal error: %s", err)
@@ -321,8 +367,9 @@ class LiveConfig(BaseModule):
                 if isinstance(obj, Service):
                     # actually this is the only (shinken-)object type
                     # that have a 2 components "unique key" :
-                    key = {k: dobj[k]
-                           for k in ('host_name', 'service_description')}
+                    key = {}
+                    for k in ('host_name', 'service_description'):
+                        key[k] = dobj[k]
                 else:
                     # each other type MUST have a get_name() which should
                     # return the unique name value for this object.
@@ -387,56 +434,50 @@ class LiveConfig(BaseModule):
 
     ########################
 
-    def hook_pre_scheduler_mod_start(self, scheduler):
+    def hook_pre_scheduler_mod_start(self, scheduler, start_thread=True):
         if self._hooked:
             return
 
-        self._my_conn = self._connect_db()
-        self._my_db = self._my_conn[self._db_name]
         self._hooked = True
+        if start_thread:
+            self._thread.start()
 
         # had to declare hooked_setattr "encapsulated" here
         # so to have access to 'self' (where we store the _objects_updated).
         def hooked_setattr(obj, attr, value):
-            # filter on obj + attr ..
-            # print("->", type(obj), attr, value)
             cls = obj.__class__
             type_infos = _types_infos[cls]
-
             if attr in type_infos.accepted_properties:
                 if value != getattr(obj, attr, _not_exist):
                     # only retain, for update, the new value if it's different
                     # than the previous one actually..
-                    # with self._lock:
-                    # TODO / TOCHECK: should we use the lock ??
-                    self._objects_updated[cls][obj][attr] = value
+                    self._objects_updated[-1][cls][obj][attr] = value
             super(Item, obj).__setattr__(attr, value)
 
         Item.__setattr__ = hooked_setattr
 
-    def hook_scheduler_tick(self, daemon):
+    def do_updates(self, db, objs_updated):
 
         n_updated = 0
         tot_attr_updated = 0
-
-        objs_updated, self._objects_updated = (
-            self._objects_updated, self._make_objects_updates())
-
-        time.sleep(0.05)
+        if __debug__:
+            attributes_updated = set()
 
         t0 = time.time()
 
         for cls, objects in objs_updated.iteritems():
             infos = _types_infos[cls]
-            collection = self._my_db[infos.plural]
+            collection = db[infos.plural]
             bulkop = collection.initialize_unordered_bulk_op()
+
             for obj, dct in objects.iteritems():
                 dest = {}
                 dobj = {'$set': dest}
 
                 if isinstance(obj, Service):
-                    key = {k: getattr(obj, k)
-                           for k in ('host_name', 'service_description')}
+                    key = {}
+                    for k in ('host_name', 'service_description'):
+                        key[k] = getattr(obj, k)
                 else:
                     key = {'%s_name' % infos.singular: obj.get_name()}
 
@@ -444,12 +485,13 @@ class LiveConfig(BaseModule):
                     value = get_value_by_type_name_val(cls, attr, value)
                     destattr = get_dest_attr(cls, attr)
                     dest[destattr] = sanitize_value(value)
+                    if __debug__:
+                        attributes_updated.add(attr)
 
                 tot_attr_updated += len(dest)
 
                 try:
-                    # print("%s -> %s" % (key, dest))
-                    bulkop.find(key).update_one(dobj)
+                    bulkop.find(key).upsert().update_one(dobj)
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s : %s" %
                                        (obj.get_name(), err))
@@ -465,8 +507,10 @@ class LiveConfig(BaseModule):
                                        "%s : %s" % (infos.plural, err))
 
         if n_updated:
-            logger.info("updated %s objects with %s attributes in mongo in %s secs ..",
-                        n_updated, tot_attr_updated, time.time() - t0)
+            fmt = "updated %s objects with %s attributes in mongo in %s secs"
+            args = [n_updated, tot_attr_updated, time.time() - t0]
+            if __debug__:
+                fmt += " attributes=%s"
+                args.append(attributes_updated)
+            logger.info(fmt, *args)
 
-        for cls in self._objects_updated:
-            self._objects_updated[cls].clear()

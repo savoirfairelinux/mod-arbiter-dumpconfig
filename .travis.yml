@@ -6,13 +6,20 @@ python:
 # command to install dependencies
 # some are only used for travis/coveralls so we are installing them here only
 install:
+  ###################################################
+  # temporary until alignak is ready with setup:
+  - git clone --depth 1 https://github.com/Alignak-monitoring/alignak
+  - ln -s alignak/shinken
+    # nb: this install the default branch of alignak, which should be develop.
+  - pip install -r alignak/requirements.txt
+  ###################################################
   - pip install -e .[test]
 
 # command to run tests
 # notice: the nose-cov is used because it is compatible with --processes, but produce a .coverage by process
 # so we must combine them in the end
 script:
-  - nosetests -xv test
+  - nosetests -xv tests --with-cov --cover-package mod_mongo_live_config
 
 # specific call to launch coverage data into coveralls.io
 after_success:

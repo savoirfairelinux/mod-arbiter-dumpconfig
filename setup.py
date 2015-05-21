@@ -68,7 +68,11 @@ setup(
     install_requires=[
         "pymongo==3.0.1",
     ],
-    test_require=[
-        unittest_pkg,
-    ],
+    extras_require={
+        'test': [
+            unittest_pkg,
+            'nose',
+            'coverage',
+        ],
+    },
 )

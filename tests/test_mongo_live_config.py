@@ -1,4 +1,5 @@
-import copy
+
+
 import sys
 
 from setup_mongo import MongoServerInstance
@@ -18,10 +19,10 @@ import mod_mongo_live_config
 import mod_mongo_live_config.live_config
 
 
-dictconf = (dict(
+dictconf = dict(
     module_name="we don't care",
     module_type="we don't care*2"
-))
+)
 
 
 class SimpleTest(unittest.TestCase):
@@ -31,34 +32,58 @@ class SimpleTest(unittest.TestCase):
         cls.mongo = MongoServerInstance()
         dconf = dictconf.copy()
         dconf['port'] = cls.mongo.mongo_port
-        modconf = shinken.objects.module.Module(dconf)
-        cls.module_instance = mod_mongo_live_config.get_instance(modconf)
+        cls.modconf = shinken.objects.module.Module(dconf)
 
     @classmethod
     def tearDownClass(cls):
         cls.mongo.close()
 
-    def test_hooked_is_ok(self):
-        mod = self.module_instance
-        self.assertFalse(mod._hooked)
-        mod.hook_pre_scheduler_mod_start(None)
-        self.assertTrue(mod._hooked)
+    def setUp(self):
+        self.module_instance = mod_mongo_live_config.get_instance(self.modconf)
+
+    def tearDown(self):
+        self.module_instance.quit()
 
     def test_simple_attr_assign(self):
         mod = self.module_instance
-        mod.hook_pre_scheduler_mod_start(None)
+
+        mod.hook_pre_scheduler_mod_start(None, start_thread=False)
+
+        objects = mod.test_and_get_objects_updates()
+        self.assertFalse(objects)
 
         host = Host()
+        # creating an Host already updates many of its attributes..
+        # I prefer to know exactly what attributes I'm playing with,
+        # so :
+        mod.test_and_get_objects_updates()
+
+        self.assertFalse(mod.test_and_get_objects_updates())
+
+        # let's go:
         host.host_name = "bla"
-        self.assertIn(host, mod._objects_updated[Host],
+        host.alias = "alias"
+
+        objects = mod.test_and_get_objects_updates()
+
+        self.assertIn(Host, objects)
+        self.assertIn(host, objects[Host],
                       'host should have been added.')
-        self.assertIn('host_name', mod._objects_updated[Host][host],
+        self.assertIn('host_name', objects[Host][host],
                       'host_name should be present in the host modified keys')
-        self.assertEqual('bla', mod._objects_updated[Host][host]['host_name'])
-        mod.hook_scheduler_tick(None)
-        self.assertNotIn(host, mod._objects_updated[Host],
-                         "after the scheduler hook the updated objects "
-                         "should be reset")
+        self.assertEqual('bla', objects[Host][host]['host_name'])
+
+        con = mod._connect_to_mongo()
+        db = con[mod._db_name]
+
+        mod.do_updates(db, objects)
+
+        conn = mod._connect_to_mongo()
+        db = conn['shinken_live']
+        col = db['hosts']
+        result = col.find_one(dict(host_name="bla"))
+        del result['_id']
+        self.assertEqual(dict(host_name='bla', alias='alias'), result)
 
     # TODO: continue
 
