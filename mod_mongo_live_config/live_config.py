@@ -346,10 +346,6 @@ class LiveConfig(BaseModule):
                     except AttributeError:
                         pass
                     else:
-                        if val is none_object:
-                            # special case for this unfortunately..
-                            val = None
-
                         val = get_value_by_type_name_val(cls, attr, val)
                         if isinstance(val, _accepted_types):
                             dobj[get_dest_attr(cls, attr)] = sanitize_value(val)
