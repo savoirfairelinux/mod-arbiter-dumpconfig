@@ -30,7 +30,7 @@ from shinken.property import none_object
 
 #############################################################################
 
-from .sanitize_shinken_object_value import sanitize_value
+from .sanitize import sanitize_value
 
 #############################################################################
 
@@ -173,15 +173,15 @@ _by_type_def_attr_value = {
 }
 
 
-def get_default_attr_value_args(attr, cls):
+def get_def_attr_value(attr, cls):
     """ Return, in a single-element tuple, the default value to be used for an
         attribute named 'attr' and belonging to the class 'cls'.
         If no such default value exists, returns the empty tuple.
         So that the returned value can directly be used like this:
         >>> obj = Service()
         >>> attr = 'foo'
-        >>> val = getattr(obj, attr, *get_default_attr_value_args(attr,
-                                                                  Service))
+        >>> val = getattr(obj, attr,
+        ...               *get_def_attr_value(attr, Service))
     :param attr: The name of the attribute.
     :param cls: The class to which the attribute belongs to.
     """
@@ -339,7 +339,7 @@ class LiveConfig(BaseModule):
                 for attr in infos.accepted_properties:
                     # would we use a default value for this attribute
                     # if the object wouldn't have it ?
-                    def_val_args = get_default_attr_value_args(attr, cls)
+                    def_val_args = get_def_attr_value(attr, cls)
 
                     try:
                         val = getattr(obj, attr, *def_val_args)
@@ -402,7 +402,7 @@ class LiveConfig(BaseModule):
         dglobal = {}
         macros = {}  # special case for shinken macros ($XXX$)
         for attr in _types_infos[Config].accepted_properties:
-            def_val_args = get_default_attr_value_args(attr, Config)
+            def_val_args = get_def_attr_value(attr, Config)
             try:
                 value = getattr(arbiter.conf, attr, *def_val_args)
             except AttributeError:
