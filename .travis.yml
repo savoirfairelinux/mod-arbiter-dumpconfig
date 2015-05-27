@@ -8,10 +8,10 @@ python:
 install:
   ###################################################
   # temporary until alignak is ready with setup:
-  - git clone --depth 1 https://github.com/Alignak-monitoring/alignak
-  - ln -s alignak/shinken
+  - git clone --depth 1 https://github.com/Alignak-monitoring/alignak alignak_prj
     # nb: this install the default branch of alignak, which should be develop.
-  - pip install -r alignak/requirements.txt
+  - (cd alignak_prj && pip install -r requirements.txt)
+  - ln -s alignak_prj/alignak
   ###################################################
   - pip install -e .[test]
 

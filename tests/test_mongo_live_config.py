@@ -1,10 +1,8 @@
 
-
 import sys
+import time
 
 from setup_mongo import MongoServerInstance
-
-from shinken.objects.host import Host
 
 
 if sys.version_info[:2] < (3, 0):
@@ -12,8 +10,8 @@ if sys.version_info[:2] < (3, 0):
 else:
     import unittest
 
-
-import shinken.objects.module
+import alignak.objects.module
+from alignak.objects.host import Host
 
 import mod_mongo_live_config
 import mod_mongo_live_config.live_config
@@ -32,7 +30,7 @@ class SimpleTest(unittest.TestCase):
         cls.mongo = MongoServerInstance()
         dconf = dictconf.copy()
         dconf['port'] = cls.mongo.mongo_port
-        cls.modconf = shinken.objects.module.Module(dconf)
+        cls.modconf = alignak.objects.module.Module(dconf)
 
     @classmethod
     def tearDownClass(cls):
@@ -73,15 +71,17 @@ class SimpleTest(unittest.TestCase):
                       'host_name should be present in the host modified keys')
         self.assertEqual('bla', objects[Host][host]['host_name'])
 
-        con = mod._connect_to_mongo()
-        db = con[mod._db_name]
-
-        mod.do_updates(db, objects)
-
         conn = mod._connect_to_mongo()
         db = conn['shinken_live']
-        col = db['hosts']
-        result = col.find_one(dict(host_name="bla"))
+        hosts_collection = db['hosts']
+        result = hosts_collection.find_one(dict(host_name="bla"))
+        self.assertFalse(result)
+
+        # this is all the job :
+        mod.do_updates(db, objects)
+
+        result = hosts_collection.find_one(dict(host_name="bla"))
+        self.assertTrue(result)
         del result['_id']
         self.assertEqual(dict(host_name='bla', alias='alias'), result)
 
