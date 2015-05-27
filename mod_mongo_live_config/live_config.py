@@ -26,6 +26,7 @@ from alignak.objects.item import Item
 #############################################################################
 
 from .default import GLOBAL_CONFIG_COLLECTION_NAME
+from .monitored_mutable import get_monitor_type_for
 from .sanitize import (
     types_infos,
     accepted_types,
@@ -50,6 +51,7 @@ def get_object_unique_key(obj, infos):
 
 #############################################################################
 
+
 class LiveConfig(BaseModule):
 
     def __init__(self, mod_conf):
@@ -63,7 +65,7 @@ class LiveConfig(BaseModule):
         self._thread = self.make_thread()
 
     def make_thread(self):
-        th = threading.Thread(target=self._thread_run)
+        th = threading.Thread(target=self._thread_run, name='mongo_liveconfig_monitor')
         th.daemon = True
         return th
 
@@ -254,13 +256,28 @@ class LiveConfig(BaseModule):
             cls = obj.__class__
             type_infos = types_infos[cls]
             if attr in type_infos.accepted_properties:
-                if value != getattr(obj, attr, _not_exist):
+                retain_change = True
+                mon_type = get_monitor_type_for(value)
+                if mon_type:
+                    if not isinstance(value, mon_type):
+                        value = mon_type(value, monitor=self, object=obj, attr=attr)
+                    else:
+                        if value._object != obj:
+                            raise RuntimeError('WHAT !? obj=%s attr=%s value._object=%s' % (
+                                obj, attr, value._object
+                            ))
+                elif value == getattr(obj, attr, _not_exist):
                     # only retain, for update, the new value if it's different
                     # than the previous one actually..
-                    self._objects_updated[-1][cls][obj][attr] = value
+                    retain_change = False
+                if retain_change:
+                    self.retain(cls, obj, attr, value)
             super(Item, obj).__setattr__(attr, value)
 
         Item.__setattr__ = hooked_setattr
+
+    def retain(self, cls, obj, attr, value):
+        self._objects_updated[-1][cls][obj][attr] = value
 
     def do_updates(self, db, objs_updated):
 

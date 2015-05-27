@@ -12,8 +12,10 @@ from alignak.property import none_object
 #############################################################################
 
 from .default import GLOBAL_CONFIG_COLLECTION_NAME
+from .monitored_mutable import Monitored_Mutable
 
 #############################################################################
+
 
 accepted_types = (
     # for each shinken object, we'll look at each of its attribute defined
@@ -40,6 +42,9 @@ accepted_types = (
     dict,
     tuple,
     list,
+
+    # nb: set&frozenset aren't directly understood by mongo,
+    # we'll "cast" them to tuples.. see _sanitizer_handlers.
     set,
     frozenset,
 
@@ -243,7 +248,11 @@ def _sanitize_value(value):
 
     # for tuple or list values,
     # we need to recursively sanitize their value :
-    if isinstance(value, (tuple, list)):
+    if isinstance(value, Monitored_Mutable):
+        base_type = value.get_base_type()
+        return _sanitize_value(
+            base_type(_sanitize_value(subval) for subval in value))
+    elif isinstance(value, (tuple, list)):
         return type(value)(_sanitize_value(subval)
                            for subval in value)
 
