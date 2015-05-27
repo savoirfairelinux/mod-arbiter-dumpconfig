@@ -1,14 +1,13 @@
 
 import datetime
 
-from shinken.objects.config import Config
-from shinken.objects.item import Item
-from shinken.commandcall import CommandCall
-from shinken.objects.host import Host
-from shinken.objects.realm import Realm
-from shinken.objects.timeperiod import Timeperiod
-from shinken.objects import Service
-from shinken.property import none_object
+from alignak.objects.config import Config
+from alignak.objects.item import Item
+from alignak.commandcall import CommandCall
+from alignak.objects.realm import Realm
+from alignak.objects.timeperiod import Timeperiod
+from alignak.objects import Service
+from alignak.property import none_object
 
 #############################################################################
 

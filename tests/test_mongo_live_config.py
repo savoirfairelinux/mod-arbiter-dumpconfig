@@ -4,16 +4,14 @@ import time
 
 from setup_mongo import MongoServerInstance
 
-from shinken.objects.host import Host
-
 
 if sys.version_info[:2] < (3, 0):
     import unittest2 as unittest
 else:
     import unittest
 
-
-import shinken.objects.module
+import alignak.objects.module
+from alignak.objects.host import Host
 
 import mod_mongo_live_config
 import mod_mongo_live_config.live_config
@@ -32,7 +30,7 @@ class SimpleTest(unittest.TestCase):
         cls.mongo = MongoServerInstance()
         dconf = dictconf.copy()
         dconf['port'] = cls.mongo.mongo_port
-        cls.modconf = shinken.objects.module.Module(dconf)
+        cls.modconf = alignak.objects.module.Module(dconf)
 
     @classmethod
     def tearDownClass(cls):

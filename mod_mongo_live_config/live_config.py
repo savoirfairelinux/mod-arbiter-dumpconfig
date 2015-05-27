@@ -16,12 +16,12 @@ from pymongo.errors import PyMongoError
 
 #############################################################################
 
-from shinken.basemodule import BaseModule
-from shinken.daemons.arbiterdaemon import Arbiter
-from shinken.objects.config import Config
-from shinken.objects import Service
-from shinken.log import logger
-from shinken.objects.item import Item
+from alignak.basemodule import BaseModule
+from alignak.daemons.arbiterdaemon import Arbiter
+from alignak.objects.config import Config
+from alignak.objects import Service
+from alignak.log import logger
+from alignak.objects.item import Item
 
 #############################################################################
 
