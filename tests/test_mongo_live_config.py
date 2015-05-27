@@ -1,6 +1,6 @@
 
-
 import sys
+import time
 
 from setup_mongo import MongoServerInstance
 
@@ -73,15 +73,17 @@ class SimpleTest(unittest.TestCase):
                       'host_name should be present in the host modified keys')
         self.assertEqual('bla', objects[Host][host]['host_name'])
 
-        con = mod._connect_to_mongo()
-        db = con[mod._db_name]
-
-        mod.do_updates(db, objects)
-
         conn = mod._connect_to_mongo()
         db = conn['shinken_live']
-        col = db['hosts']
-        result = col.find_one(dict(host_name="bla"))
+        hosts_collection = db['hosts']
+        result = hosts_collection.find_one(dict(host_name="bla"))
+        self.assertFalse(result)
+
+        # this is all the job :
+        mod.do_updates(db, objects)
+
+        result = hosts_collection.find_one(dict(host_name="bla"))
+        self.assertTrue(result)
         del result['_id']
         self.assertEqual(dict(host_name='bla', alias='alias'), result)
 

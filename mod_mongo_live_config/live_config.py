@@ -5,7 +5,6 @@ from __future__ import print_function, with_statement, unicode_literals
 
 from collections import defaultdict, deque
 
-import datetime
 import sys
 import threading
 import time
@@ -13,213 +12,43 @@ import time
 #############################################################################
 
 import pymongo
+from pymongo.errors import PyMongoError
 
 #############################################################################
 
 from shinken.basemodule import BaseModule
-from shinken.commandcall import CommandCall
 from shinken.daemons.arbiterdaemon import Arbiter
 from shinken.objects.config import Config
 from shinken.objects import Service
 from shinken.log import logger
-from shinken.objects.host import Host
-from shinken.objects.item import Item, Items
-from shinken.objects.realm import Realm
-from shinken.objects.timeperiod import Timeperiod
-from shinken.property import none_object
+from shinken.objects.item import Item
 
 #############################################################################
 
-from .sanitize import sanitize_value
+from .default import GLOBAL_CONFIG_COLLECTION_NAME
+from .sanitize import (
+    types_infos,
+    accepted_types,
+    sanitize_value,
+    get_def_attr_value,
+)
 
 #############################################################################
-
-GLOBAL_CONFIG_COLLECTION_NAME = "global_configuration"
 
 _not_exist = object()  # a sentinel to be used..
 
-_accepted_types = (
-    # for each shinken object, we'll look at each of its attribute defined
-    # in its class 'properties' and 'running_properties' dicts (+ few others
-    # hardcoded one because we miss them in pre-mentioned dicts unfortun.. )
-
-    # If the object attribute value isn't one of '_accepted_types'
-    # then that attribute will simply be skipped !
-
-    # "base" types:
-    type(None),
-    bool,
-    int,
-    long,
-    float,
-    str,
-    unicode,
-
-    # special types also understood by mongo:
-    datetime.datetime,
-    datetime.time,
-
-    # "container" types :
-    dict,
-    tuple,
-    list,
-    set,
-    frozenset,
-
-    # shinken objects types:
-    Item,
-    CommandCall,   # CommandCall isn't subclass of Item actually
-)
-
 #############################################################################
 
-_skip_attributes = (
-    # these attributes will be globally skipped whatever are the values, if any
-    'hash',
-    'configuration_errors',
-    'configuration_warnings',
-    'broks',
-    'actions',
-)
-
-_by_type_skip_attributes = {
-    # for each shinken object type,
-    # define the (list/tuple of) attributes to be also skipped.
-
-    # timeperiod objects have a dateranges attribute,
-    # but it's quite a complex object type and I'm not sure it's actually
-    # needed within the mongo :
-    Timeperiod: ('dateranges',),
-    Realm: ('serialized_confs',),
-    Config: ('confs', 'whole_conf_pack',),
-    Host: ('checks_in_progress',),
-    Service: ('checks_in_progress',),
-}
-
+def get_object_unique_key(obj, infos):
+    if isinstance(obj, Service):
+        key = {}
+        for k in ('host_name', 'service_description'):
+            key[k] = getattr(obj, k)
+    else:
+        key = {'%s_name' % infos.singular: obj.get_name()}
+    return key
 
 #############################################################################
-# various data handlers and settings to configure how the serialization
-# from shinken objects to "json-like" objects will be done.
-
-class TypeInfos(object):
-    def __init__(self, singular, clss, plural, accepted_properties):
-        self.singular = singular
-        self.clss = clss
-        self.plural = plural
-        self.accepted_properties = accepted_properties
-
-
-# just to save us to recompute this every time we need to work on a
-# particular shinken object type :
-def _build_types_infos():
-    res = {}
-    for _, (cls, clss, plural, _) in Config.types_creations.items():
-        accepted_properties = set(cls.properties) | set(cls.running_properties)
-        accepted_properties -= set(_skip_attributes)
-        accepted_properties -= set(_by_type_skip_attributes.get(cls, ()))
-        accepted_properties.add('use')
-        res[cls] = TypeInfos(cls.__name__.lower(), clss, plural,
-                             accepted_properties)
-
-    # Config is a bit special (it has not "plural" class):
-    ap = set(Config.properties) | set(Config.running_properties)
-    ap -= set(_skip_attributes)
-    ap -= set(_by_type_skip_attributes.get(Config, ()))
-    res[Config] = TypeInfos('config', None, GLOBAL_CONFIG_COLLECTION_NAME, ap)
-    return res
-
-_types_infos = _build_types_infos()
-del _build_types_infos
-
-#############################################################################
-
-_rename_prop = {
-    # if you want to globally rename some attributes between shinken and mongo.
-    # example:
-    # 'attr_foo':   'attr_bar'
-}
-
-_by_type_rename_prop = {
-    # same than _rename_prop but takes also into account the object class.
-    # example:
-    # Service: {
-    #   'attr_foo':     'attr_bar'
-    # }
-}
-
-
-def get_dest_attr(objtype, attr):
-    destattr = _rename_prop.get(attr)
-    if destattr:
-        return destattr
-    return _by_type_rename_prop.get(objtype, {}).get(attr, attr)
-
-#############################################################################
-
-_def_attr_value = {
-    # if an attribute is missing on an object
-    # then it'll get a default *handler* value from here,
-    'use': lambda: [],  # that is the lambda will be executed
-                        # and it's return value will be used as the default.
-}
-
-_by_type_def_attr_value = {
-    # same, but with per type:
-    # example:
-    # Service: {
-    #   'attr_foo': lambda: default_value_for_attr_foo_on_Service_object,
-    #   ..
-    # }
-}
-
-
-def get_def_attr_value(attr, cls):
-    """ Return, in a single-element tuple, the default value to be used for an
-        attribute named 'attr' and belonging to the class 'cls'.
-        If no such default value exists, returns the empty tuple.
-        So that the returned value can directly be used like this:
-        >>> obj = Service()
-        >>> attr = 'foo'
-        >>> val = getattr(obj, attr,
-        ...               *get_def_attr_value(attr, Service))
-    :param attr: The name of the attribute.
-    :param cls: The class to which the attribute belongs to.
-    """
-    handler = _def_attr_value.get(attr)
-    if not handler:
-        handler = _by_type_def_attr_value.get(cls, {}).get(attr)
-    if handler:
-        return handler(),  # NB: don't miss the ',' !
-    return ()
-
-#############################################################################
-
-_by_name_converter = {
-    # for some attributes, I want to eventually adapt their value based on it:
-
-    'use': lambda v: v if v else []  # so to be sure to not get None/0/..
-                                     # for this attribute *BUT*: []
-
-}
-
-_by_type_name_converter = {
-    # example:
-    # Service: {
-    #      'some_attr_name':   lambda value: str(value)  # say
-    # }
-}
-
-
-def get_value_by_type_name_val(cls, attr, value):
-    handler = _by_name_converter.get(attr)
-    if not handler:
-        handler = _by_type_name_converter.get(cls, {}).get(attr)
-    if handler:
-        return handler(value)
-    return value
-
-#############################################################################
-
 
 class LiveConfig(BaseModule):
 
@@ -252,7 +81,8 @@ class LiveConfig(BaseModule):
                 try:
                     con = self._connect_to_mongo()
                     db = con[self._db_name]
-                except Exception as err:
+                    db.collection_names()
+                except PyMongoError as err:
                     logger.error("Could not connect to mongo: %s", err)
                     time.sleep(1)
                     continue
@@ -294,7 +124,7 @@ class LiveConfig(BaseModule):
     def _connect_to_mongo(self):
         return pymongo.MongoClient(self._host, self._port,
                                    connectTimeoutMS=5000,
-                                   serverSelectionTimeoutMS=5000,
+                                   #serverSelectionTimeoutMS=5000,
                                    socketTimeoutMS=7500)
 
     def hook_late_configuration(self, arbiter):
@@ -328,7 +158,7 @@ class LiveConfig(BaseModule):
         :return:
         """
         db = conn[self._db_name]
-        for cls, infos in _types_infos.items():
+        for cls, infos in types_infos.items():
             if cls is Config:
                 continue  # special cased below ..
             collection = db[infos.plural]
@@ -346,9 +176,9 @@ class LiveConfig(BaseModule):
                     except AttributeError:
                         pass
                     else:
-                        val = get_value_by_type_name_val(cls, attr, val)
-                        if isinstance(val, _accepted_types):
-                            dobj[get_dest_attr(cls, attr)] = sanitize_value(val)
+                        val = sanitize_value(cls, obj, attr, val)
+                        if isinstance(val, accepted_types):
+                            dobj[attr] = val
                         else:
                             raise RuntimeError(
                                 "I'm not sure I could handle this type of value "
@@ -359,27 +189,7 @@ class LiveConfig(BaseModule):
                             )
                 # end for attr in ..
 
-                # I want to be sure each object has a "unique" "key" value
-                if isinstance(obj, Service):
-                    # actually this is the only (shinken-)object type
-                    # that have a 2 components "unique key" :
-                    key = {}
-                    for k in ('host_name', 'service_description'):
-                        key[k] = dobj[k]
-                else:
-                    # each other type MUST have a get_name() which should
-                    # return the unique name value for this object.
-                    key_name = '%s_name' % infos.singular
-                    key_value = obj.get_name()
-                    key = {key_name: key_value}
-                    prev = dobj.setdefault(key_name, key_value)
-                    if prev != key_value:
-                        raise RuntimeError(
-                            "damn: I wanted to be sure that object %s:%s had the "
-                            "%s attribute, but its previous value is not what "
-                            "I was expecting, got %s expected %s" %
-                            (cls, obj.get_name(), attr, prev, key_value))
-
+                key = get_object_unique_key(obj, infos)
                 try:
                     bulkop.find(key).upsert().replace_one(dobj)
                 except Exception as err:
@@ -395,21 +205,21 @@ class LiveConfig(BaseModule):
                 except Exception as err:
                     raise RuntimeError("Error on bulk execute for collection "
                                        "%s : %s" % (infos.plural, err))
-        # end for cls, infos in _types_infos.items()
+        # end for cls, infos in types_infos.items()
 
         # special case for the global configuration values :
         collection = db[GLOBAL_CONFIG_COLLECTION_NAME]
         dglobal = {}
         macros = {}  # special case for shinken macros ($XXX$)
-        for attr in _types_infos[Config].accepted_properties:
+        for attr in types_infos[Config].accepted_properties:
             def_val_args = get_def_attr_value(attr, Config)
             try:
                 value = getattr(arbiter.conf, attr, *def_val_args)
             except AttributeError:
                 continue
-            if not isinstance(value, _accepted_types):
+            if not isinstance(value, accepted_types):
                 continue
-            value = sanitize_value(value)
+            value = sanitize_value(cls, obj, attr, value)
             # special case, mongo don't accept keys starting with '$',
             # and we'll put that in a subkey of the main document.
             if attr.startswith('$') and attr.endswith('$'):
@@ -442,7 +252,7 @@ class LiveConfig(BaseModule):
         # so to have access to 'self' (where we store the _objects_updated).
         def hooked_setattr(obj, attr, value):
             cls = obj.__class__
-            type_infos = _types_infos[cls]
+            type_infos = types_infos[cls]
             if attr in type_infos.accepted_properties:
                 if value != getattr(obj, attr, _not_exist):
                     # only retain, for update, the new value if it's different
@@ -462,7 +272,7 @@ class LiveConfig(BaseModule):
         t0 = time.time()
 
         for cls, objects in objs_updated.iteritems():
-            infos = _types_infos[cls]
+            infos = types_infos[cls]
             collection = db[infos.plural]
             bulkop = collection.initialize_unordered_bulk_op()
 
@@ -470,17 +280,10 @@ class LiveConfig(BaseModule):
                 dest = {}
                 dobj = {'$set': dest}
 
-                if isinstance(obj, Service):
-                    key = {}
-                    for k in ('host_name', 'service_description'):
-                        key[k] = getattr(obj, k)
-                else:
-                    key = {'%s_name' % infos.singular: obj.get_name()}
+                key = get_object_unique_key(obj, infos)
 
                 for attr, value in dct.iteritems():
-                    value = get_value_by_type_name_val(cls, attr, value)
-                    destattr = get_dest_attr(cls, attr)
-                    dest[destattr] = sanitize_value(value)
+                    dest[attr] = sanitize_value(cls, obj, attr, value)
                     if __debug__:
                         attributes_updated.add(attr)
 
