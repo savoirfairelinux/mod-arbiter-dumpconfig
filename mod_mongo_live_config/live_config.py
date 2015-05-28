@@ -160,10 +160,12 @@ class LiveConfig(BaseModule):
         :return:
         """
         db = conn[self._db_name]
+
         for cls, infos in types_infos.items():
             if cls is Config:
                 continue  # special cased below ..
             collection = db[infos.plural]
+            collection.drop()
             bulkop = collection.initialize_unordered_bulk_op()
             objects = getattr(arbiter.conf, infos.plural)
             for obj in objects:
