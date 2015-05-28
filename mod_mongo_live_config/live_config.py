@@ -118,10 +118,8 @@ class LiveConfig(BaseModule):
         # keys are Shinken objects type (Item, Host, ..)
         # values are defaultdict(dict) :
         #   with key: the object updated
-        #      value: another dict of updated attributes
-        #         with key: the attribute name
-        #            value: the new attribute value
-        return defaultdict(lambda: defaultdict(dict))
+        #      value: a set of updated attributes
+        return defaultdict(lambda: defaultdict(set))
 
     def _connect_to_mongo(self):
         return pymongo.MongoClient(self._host, self._port,
@@ -277,7 +275,7 @@ class LiveConfig(BaseModule):
         Item.__setattr__ = hooked_setattr
 
     def retain(self, cls, obj, attr, value):
-        self._objects_updated[-1][cls][obj][attr] = value
+        self._objects_updated[-1][cls][obj].add(attr)
 
     def do_updates(self, db, objs_updated):
 
@@ -293,13 +291,17 @@ class LiveConfig(BaseModule):
             collection = db[infos.plural]
             bulkop = collection.initialize_unordered_bulk_op()
 
-            for obj, dct in objects.iteritems():
+            for obj, attr_set in objects.iteritems():
                 dest = {}
                 dobj = {'$set': dest}
 
                 key = get_object_unique_key(obj, infos)
 
-                for attr, value in dct.iteritems():
+                for attr in attr_set:
+                    try:
+                        value = getattr(obj, attr)
+                    except AttributeError:
+                        continue
                     dest[attr] = sanitize_value(cls, obj, attr, value)
                     if __debug__:
                         attributes_updated.add(attr)
