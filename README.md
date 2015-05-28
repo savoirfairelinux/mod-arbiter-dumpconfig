@@ -1,7 +1,7 @@
 mod-mongo-live-config [![Build Status](https://travis-ci.org/savoirfairelinux/mod-mongo-live-config.svg?branch=master)](https://travis-ci.org/savoirfairelinux/mod-mongo-live-config) [![Coverage Status](https://img.shields.io/coveralls/savoirfairelinux/mod-mongo-live-config.svg)](https://coveralls.io/r/savoirfairelinux/mod-mongo-live-config?branch=master)
 =====================
 
-[[Alignak](https://github.com/Alignak-monitoring/alignak)] module for keeping, nearly in realtime, the (Alignak) objects properties/attributes values in a mongodb,
+[Alignak](https://github.com/Alignak-monitoring/alignak) module for keeping, nearly in realtime, the (Alignak) objects properties/attributes values in a mongodb,
 as well as the global configuration properties/attributes values.
 
 The module requires the following:
