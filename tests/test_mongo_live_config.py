@@ -69,7 +69,6 @@ class SimpleTest(unittest.TestCase):
                       'host should have been added.')
         self.assertIn('host_name', objects[Host][host],
                       'host_name should be present in the host modified keys')
-        self.assertEqual('bla', objects[Host][host]['host_name'])
 
         conn = mod._connect_to_mongo()
         db = conn['shinken_live']
