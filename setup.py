@@ -73,6 +73,7 @@ setup(
             unittest_pkg,
             'nose==1.3',
             'coverage==3.7',
+            'coveralls==0.5',
         ],
     },
 )
