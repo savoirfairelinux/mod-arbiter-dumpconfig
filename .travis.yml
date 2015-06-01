@@ -23,4 +23,4 @@ script:
 
 # specific call to launch coverage data into coveralls.io
 after_success:
-  coveralls
+  coveralls -v
