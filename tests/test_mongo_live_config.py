@@ -1,9 +1,5 @@
 
 import sys
-import time
-
-from setup_mongo import MongoServerInstance
-
 
 if sys.version_info[:2] < (3, 0):
     import unittest2 as unittest
@@ -17,6 +13,7 @@ import mod_mongo_live_config
 import mod_mongo_live_config.live_config
 from mod_mongo_live_config.default import DEFAULT_DATABASE_NAME
 
+from .setup_mongo import MongoServerInstance
 
 dictconf = dict(
     module_name="we don't care",
