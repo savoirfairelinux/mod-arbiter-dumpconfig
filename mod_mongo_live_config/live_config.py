@@ -158,10 +158,12 @@ class LiveConfig(BaseModule):
         :return:
         """
         db = conn[self._db_name]
+
         for cls, infos in types_infos.items():
             if cls is Config:
                 continue  # special cased below ..
             collection = db[infos.plural]
+            collection.drop()
             bulkop = collection.initialize_unordered_bulk_op()
             objects = getattr(arbiter.conf, infos.plural)
             for obj in objects:
@@ -209,6 +211,7 @@ class LiveConfig(BaseModule):
 
         # special case for the global configuration values :
         collection = db[GLOBAL_CONFIG_COLLECTION_NAME]
+        collection.drop()
         dglobal = {}
         macros = {}  # special case for shinken macros ($XXX$)
         for attr in types_infos[Config].accepted_properties:
