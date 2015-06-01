@@ -31,6 +31,6 @@ define module {
     #        default: 27017
     
     # db : the name of the mongo db to use
-    #      default: shinken_live
+    #      default: alignak_live
 }
 ```

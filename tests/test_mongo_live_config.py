@@ -15,6 +15,7 @@ from alignak.objects.host import Host
 
 import mod_mongo_live_config
 import mod_mongo_live_config.live_config
+from mod_mongo_live_config.default import DEFAULT_DATABASE_NAME
 
 
 dictconf = dict(
@@ -71,7 +72,7 @@ class SimpleTest(unittest.TestCase):
                       'host_name should be present in the host modified keys')
 
         conn = mod._connect_to_mongo()
-        db = conn['shinken_live']
+        db = conn[DEFAULT_DATABASE_NAME]
         hosts_collection = db['hosts']
         result = hosts_collection.find_one(dict(host_name="bla"))
         self.assertFalse(result)

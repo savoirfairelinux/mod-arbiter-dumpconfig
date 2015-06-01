@@ -25,7 +25,12 @@ from alignak.objects.item import Item
 
 #############################################################################
 
-from .default import GLOBAL_CONFIG_COLLECTION_NAME
+from .default import (
+    DEFAULT_DATABASE_NAME,
+    DEFAULT_DATABASE_HOST,
+    DEFAULT_DATABASE_PORT,
+    GLOBAL_CONFIG_COLLECTION_NAME,
+)
 from .monitored_mutable import get_monitor_type_for
 from .sanitize import (
     types_infos,
@@ -56,9 +61,9 @@ class LiveConfig(BaseModule):
 
     def __init__(self, mod_conf):
         super(LiveConfig, self).__init__(mod_conf)
-        self._host = getattr(mod_conf, 'hostname', '127.0.0.1')
-        self._port = int(getattr(mod_conf, 'port', 27017))
-        self._db_name = getattr(mod_conf, 'db', 'shinken_live')
+        self._host = getattr(mod_conf, 'hostname', DEFAULT_DATABASE_HOST)
+        self._port = int(getattr(mod_conf, 'port', DEFAULT_DATABASE_PORT))
+        self._db_name = getattr(mod_conf, 'db', DEFAULT_DATABASE_NAME)
         self._hooked = False
         self._objects_updated = deque([self.make_objects_updates()])
         self._stop_requested = False
@@ -213,7 +218,7 @@ class LiveConfig(BaseModule):
         collection = db[GLOBAL_CONFIG_COLLECTION_NAME]
         collection.drop()
         dglobal = {}
-        macros = {}  # special case for shinken macros ($XXX$)
+        macros = {}  # special case for alignak macros ($XXX$)
         for attr in types_infos[Config].accepted_properties:
             def_val_args = get_def_attr_value(attr, Config)
             try:

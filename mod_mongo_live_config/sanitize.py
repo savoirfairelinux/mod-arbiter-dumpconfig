@@ -18,7 +18,7 @@ from .monitored_mutable import Monitored_Mutable
 
 
 accepted_types = (
-    # for each shinken object, we'll look at each of its attribute defined
+    # for each alignak object, we'll look at each of its attribute defined
     # in its class 'properties' and 'running_properties' dicts (+ few others
     # hardcoded one because we miss them in pre-mentioned dicts unfortun.. )
 
@@ -48,7 +48,7 @@ accepted_types = (
     set,
     frozenset,
 
-    # shinken objects types:
+    # Alignak objects types:
     Item,
     CommandCall,   # CommandCall isn't subclass of Item actually
 )
@@ -66,7 +66,7 @@ _skip_attributes = (
 )
 
 _by_type_skip_attributes = {
-    # for each shinken object type,
+    # for each alignak object type,
     # define the (list/tuple of) attributes to be also skipped.
 
     # timeperiod objects have a dateranges attribute,
@@ -82,7 +82,7 @@ _by_type_skip_attributes = {
 
 #############################################################################
 # various data handlers and settings to configure how the serialization
-# from shinken objects to "json-like" objects will be done.
+# from alignak objects to "json-like" objects will be done.
 
 class TypeInfos(object):
     def __init__(self, singular, clss, plural, accepted_properties):
@@ -93,7 +93,7 @@ class TypeInfos(object):
 
 
 # just to save us to recompute this every time we need to work on a
-# particular shinken object type :
+# particular alignak object type :
 def _build_types_infos():
     res = {}
     for _, (cls, clss, plural, _) in Config.types_creations.items():
@@ -119,7 +119,7 @@ if False:
     # unused feature for now.. but could be used..
 
     _rename_prop = {
-        # if you want to globally rename some attributes between shinken and mongo.
+        # if you want to globally rename some attributes between alignak and mongo.
         # example:
         # 'attr_foo':   'attr_bar'
     }
@@ -202,7 +202,7 @@ def get_value_by_type_name_val(cls, attr, value):
 
 #############################################################################
 
-_shinken_objects_types = (
+_alignak_objects_types = (
     # theses classes (or subclass of) should have a get_name() method.
     # returning the actual "name" of the object.
     # which MUST be unique for every objects of the same type.
@@ -243,7 +243,7 @@ def _sanitize_value(value):
     handler = _sanitizer_handlers.get(type(value), lambda v: v)
     value = handler(value)
 
-    if isinstance(value, _shinken_objects_types):
+    if isinstance(value, _alignak_objects_types):
         return value.get_name()
 
     # for tuple or list values,
