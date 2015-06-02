@@ -1,5 +1,5 @@
 
-from .version import VERSION
+from .version import VERSION as __version__
 
 properties = {
     'daemons': ['arbiter', 'scheduler'],
