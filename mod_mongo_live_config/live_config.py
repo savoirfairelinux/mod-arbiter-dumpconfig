@@ -169,7 +169,8 @@ class LiveConfig(BaseModule):
                 continue  # special cased below ..
             collection = db[infos.plural]
             collection.drop()
-            bulkop = collection.initialize_unordered_bulk_op()
+            if pymongo.version >= "2.7":
+                bulkop = collection.initialize_unordered_bulk_op()
             objects = getattr(arbiter.conf, infos.plural)
             for obj in objects:
                 dobj = {}  # the mongo document which will be stored..
@@ -198,14 +199,17 @@ class LiveConfig(BaseModule):
 
                 key = get_object_unique_key(obj, infos)
                 try:
-                    bulkop.find(key).upsert().replace_one(dobj)
+                    if pymongo.version >= "2.7":
+                        bulkop.find(key).upsert().replace_one(dobj)
+                    else:
+                        collection.update(key, {"$set": dobj}, upsert=True)
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s-%s : %s" %
                                        (cls, obj.get_name(), err))
 
             # end for obj in objects..
 
-            if objects:
+            if objects and pymongo.version >= "2.7":
                 # mongo requires at least one document for a bulkop.execute()
                 try:
                     bulkop.execute()
@@ -297,7 +301,8 @@ class LiveConfig(BaseModule):
         for cls, objects in objs_updated.iteritems():
             infos = types_infos[cls]
             collection = db[infos.plural]
-            bulkop = collection.initialize_unordered_bulk_op()
+            if pymongo.version >= "2.7":
+                bulkop = collection.initialize_unordered_bulk_op()
 
             for obj, attr_set in objects.iteritems():
                 dest = {}
@@ -317,14 +322,17 @@ class LiveConfig(BaseModule):
                 tot_attr_updated += len(dest)
 
                 try:
-                    bulkop.find(key).upsert().update_one(dobj)
+                    if pymongo.version >= "2.7":
+                        bulkop.find(key).upsert().update_one(dobj)
+                    else:
+                        collection.update(key, dobj, upsert=True)
                 except Exception as err:
                     raise RuntimeError("Error on insert/update of %s : %s" %
                                        (obj.get_name(), err))
                 n_updated += 1
             # end for obj, lst in objects.items()
 
-            if objects:
+            if objects and pymongo.version >= "2.7":
                 # mongo requires at least one document for a bulkop.execute()
                 try:
                     bulkop.execute()
