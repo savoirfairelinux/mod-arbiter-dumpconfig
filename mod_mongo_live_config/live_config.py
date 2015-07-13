@@ -311,6 +311,8 @@ class LiveConfig(BaseModule):
                 key = get_object_unique_key(obj, infos)
 
                 for attr in attr_set:
+                    if attr in ['notifications_in_progress']:
+                        continue
                     try:
                         value = getattr(obj, attr)
                     except AttributeError:
