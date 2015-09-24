@@ -7,7 +7,16 @@ from alignak.commandcall import CommandCall
 from alignak.objects.realm import Realm
 from alignak.objects.timeperiod import Timeperiod
 from alignak.objects import Service
-from alignak.property import none_object
+
+import alignak.property
+
+# back-compatibility with alignak pre-clean and post-clean,
+# see: https://github.com/Alignak-monitoring/alignak/commit/667018a7658a416fe0e08888edd7dccc7d3cdfaf
+if 'NONE_OBJECT' in vars(alignak.property):
+    none_object = alignak.property.NONE_OBJECT
+else:
+    none_object = alignak.property.none_object
+
 
 #############################################################################
 
