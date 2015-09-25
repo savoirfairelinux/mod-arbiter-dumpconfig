@@ -45,6 +45,7 @@ _not_exist = object()  # a sentinel to be used..
 
 #############################################################################
 
+
 def get_object_unique_key(obj, infos):
     if isinstance(obj, Service):
         key = {}
